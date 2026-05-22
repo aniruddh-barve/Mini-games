@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Progressive Paper Toss Pro (Jumbo Area)</title>
+    <title>Progressive Paper Toss Pro (Mega Vertical)</title>
     <style>
         body {
             margin: 0;
@@ -112,7 +112,7 @@
 
         #wind-banner {
             position: absolute;
-            bottom: 230px; /* Elevated to fit the taller canvas size */
+            bottom: 260px; /* Shifted banner upward dynamically */
             width: 100%;
             text-align: center;
             font-weight: 800;
@@ -134,13 +134,14 @@
             </div>
         </div>
 
-        <canvas id="gameCanvas" width="400" height="650"></canvas>
+        <!-- Height drastically extended to 780 for massive sky room -->
+        <canvas id="gameCanvas" width="400" height="780"></canvas>
         
         <div id="wind-banner">💨 Wind: <span id="wind-text">CALM</span></div>
 
         <div id="overlay">
-            <h2 id="title-text">🗑️ TALL TOSS ARENA 📄</h2>
-            <p id="body-text">We've expanded the arena! Enjoy higher sky-arcs and a spacious touch flick zone underneath the elevated paper ball.</p>
+            <h2 id="title-text">🌤️ SKY HIGH ARENA 📄</h2>
+            <p id="body-text">Max volume! The arena canvas is now super tall (780px), allowing massive high-altitude trick shots and extreme flight-arcs.</p>
             <button class="btn" id="action-btn" onclick="startGame()">START TOSSING</button>
         </div>
     </div>
@@ -161,18 +162,18 @@
         let windForce = 0;
         let windDirection = 0;
 
-        // Trash Bin Target: Shifted slightly lower down the wall to accentuate the longer drop distance
+        // Positioned perfectly near the upper-mid region for visual balancing
         const bin = { 
             x: 165, 
-            y: 130, 
+            y: 160, 
             width: 72, 
             height: 85, 
             currentDirection: 1,
-            baseSpeed: 2.0
+            baseSpeed: 1.2 
         };
         
-        // Elevated Paper Ball position: moved from y: 460 up to y: 520, leaving lots of flick space down to y: 650
-        const ballDefault = { x: 200, y: 520, radius: 25, size: 25 };
+        // Centered lower down for a massive flick runway
+        const ballDefault = { x: 200, y: 640, radius: 25, size: 25 };
         let ball = { ...ballDefault, vx: 0, vy: 0, isThrown: false, scale: 1 };
 
         let touchStart = { x: 0, y: 0 };
@@ -208,11 +209,10 @@
             let dx = touchCurrent.x - touchStart.x;
             let dy = touchCurrent.y - touchStart.y;
 
-            // Trigger flick execution
             if (dy < -20) {
-                ball.vx = dx * 0.065;
-                // Slightly adjusted throw velocity index to balance out the extra canvas vertical travel space
-                ball.vy = dy * 0.072;
+                ball.vx = dx * 0.055;
+                // Balanced scale vector for the extra gravity hangtime
+                ball.vy = dy * 0.062;
                 ball.isThrown = true;
             }
         });
@@ -225,13 +225,13 @@
             } 
             else if (streakCount >= 3 && streakCount < 7) {
                 windDirection = Math.random() < 0.5 ? -1 : 1;
-                windForce = 0.045 + (Math.random() * 0.04);
+                windForce = 0.035 + (Math.random() * 0.03);
                 renderWindUI();
                 showBadge("🔥 ON FIRE");
             } 
             else {
                 windDirection = Math.random() < 0.5 ? -1 : 1;
-                windForce = 0.095 + (Math.random() * 0.085);
+                windForce = 0.075 + (Math.random() * 0.065);
                 renderWindUI();
                 showBadge("👑 UNSTOPPABLE");
             }
@@ -313,18 +313,17 @@
 
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-                // Desk Horizon Depth Wall Environment Line
-                let floorGrad = ctx.createLinearGradient(0, 180, 0, canvas.height);
+                // Horizon Wall Split line moved slightly lower to compensate for height scaling
+                let floorGrad = ctx.createLinearGradient(0, 220, 0, canvas.height);
                 floorGrad.addColorStop(0, '#cbd5e1');
                 floorGrad.addColorStop(1, '#94a3b8');
                 ctx.fillStyle = floorGrad;
-                ctx.fillRect(0, 180, canvas.width, canvas.height - 180);
+                ctx.fillRect(0, 220, canvas.width, canvas.height - 220);
                 ctx.fillStyle = '#64748b';
-                ctx.fillRect(0, 176, canvas.width, 4);
+                ctx.fillRect(0, 216, canvas.width, 4);
 
-                // Basket Motion Config
                 if (streakCount >= 3) {
-                    let currentDynamicSpeed = bin.baseSpeed + (streakCount * 0.22);
+                    let currentDynamicSpeed = bin.baseSpeed + (streakCount * 0.06);
                     bin.x += currentDynamicSpeed * bin.currentDirection;
                     
                     if (bin.x < 25) {
@@ -336,7 +335,6 @@
                     }
                 }
 
-                // Back Lid Interior Mesh Rim
                 ctx.fillStyle = '#1e293b';
                 ctx.beginPath();
                 ctx.ellipse(bin.x + (bin.width/2), bin.y, bin.width/2, 12, 0, 0, Math.PI * 2);
@@ -346,13 +344,13 @@
                     ball.vx += windForce * windDirection * 0.15;
                     ball.x += ball.vx;
                     ball.y += ball.vy;
-                    ball.vy += 0.28; // Tweak gravity indexes down slightly for the bigger jump window
+                    // Slightly softened gravity index (0.22 instead of 0.28) for smooth high-arcs
+                    ball.vy += 0.22;
 
-                    // Scaled calculation matching larger sky space
-                    ball.scale = Math.max(0.35, ball.scale - 0.016);
+                    // Extended shrinkage rate to match deeper visual distance
+                    ball.scale = Math.max(0.32, ball.scale - 0.013);
                     ball.radius = ballDefault.size * ball.scale;
 
-                    // Perfect rim matching boundary checker
                     if (ball.vy >= 0 && ball.y >= bin.y - 12 && ball.y <= bin.y + 36) {
                         let binCenterX = bin.x + (bin.width / 2);
                         let allowance = (bin.width / 2) + 7;
@@ -361,7 +359,7 @@
                             streakCount++;
                             document.getElementById('streak-display').innerText = streakCount;
 
-                            screenShake = 6 + (streakCount * 1.5);
+                            screenShake = 6 + (streakCount * 1.2);
                             spawnCelebrationParticles(ball.x, bin.y + 10);
                             
                             let word = hypeWords[Math.min(hypeWords.length - 1, Math.floor(streakCount / 2))];
@@ -377,7 +375,6 @@
                     }
                 }
 
-                // Front structure wall grid plate
                 let binGrad = ctx.createLinearGradient(bin.x, bin.y, bin.x + bin.width, bin.y);
                 binGrad.addColorStop(0, '#475569');
                 binGrad.addColorStop(0.5, '#64748b');
@@ -391,7 +388,6 @@
                 ctx.closePath();
                 ctx.fill();
 
-                // Custom vector drag pointer target lines
                 if (isDragging) {
                     ctx.strokeStyle = '#10b981';
                     ctx.lineWidth = 5;
@@ -402,7 +398,6 @@
                     ctx.stroke();
                 }
 
-                // Core Projectile Object Display
                 ctx.fillStyle = '#ffffff';
                 ctx.strokeStyle = '#cbd5e1';
                 ctx.lineWidth = 2.5;
@@ -411,7 +406,6 @@
                 ctx.fill();
                 ctx.stroke();
 
-                // Particles updating engine
                 for (let i = particles.length - 1; i >= 0; i--) {
                     let p = particles[i];
                     p.x += p.vx; p.y += p.vy; p.vy += 0.2; p.alpha -= p.decay;
@@ -420,7 +414,6 @@
                     ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2); ctx.fill(); ctx.restore();
                 }
 
-                // Floating words rendering loop
                 for (let i = floaters.length - 1; i >= 0; i--) {
                     let f = floaters[i];
                     f.y += f.vy; f.alpha -= 0.02;
