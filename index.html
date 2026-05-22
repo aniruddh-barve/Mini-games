@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Progressive Paper Toss Pro (Mega Vertical)</title>
+    <title>Progressive Paper Toss Pro (Trajectory Tracer)</title>
     <style>
         body {
             margin: 0;
@@ -112,7 +112,7 @@
 
         #wind-banner {
             position: absolute;
-            bottom: 260px; /* Shifted banner upward dynamically */
+            bottom: 260px;
             width: 100%;
             text-align: center;
             font-weight: 800;
@@ -134,14 +134,13 @@
             </div>
         </div>
 
-        <!-- Height drastically extended to 780 for massive sky room -->
         <canvas id="gameCanvas" width="400" height="780"></canvas>
         
         <div id="wind-banner">💨 Wind: <span id="wind-text">CALM</span></div>
 
         <div id="overlay">
-            <h2 id="title-text">🌤️ SKY HIGH ARENA 📄</h2>
-            <p id="body-text">Max volume! The arena canvas is now super tall (780px), allowing massive high-altitude trick shots and extreme flight-arcs.</p>
+            <h2 id="title-text">🔮 TRACER ARENA GOAL 📄</h2>
+            <p id="body-text">Throw tracking enabled! Watch your ball leave a beautiful fading motion path to perfectly analyze your high-arching curves.</p>
             <button class="btn" id="action-btn" onclick="startGame()">START TOSSING</button>
         </div>
     </div>
@@ -157,12 +156,12 @@
 
         let particles = [];
         let floaters = [];
+        let ballHistory = []; // Engine array to hold flight telemetry tracking coordinates
         let screenShake = 0;
 
         let windForce = 0;
         let windDirection = 0;
 
-        // Positioned perfectly near the upper-mid region for visual balancing
         const bin = { 
             x: 165, 
             y: 160, 
@@ -172,7 +171,6 @@
             baseSpeed: 1.2 
         };
         
-        // Centered lower down for a massive flick runway
         const ballDefault = { x: 200, y: 640, radius: 25, size: 25 };
         let ball = { ...ballDefault, vx: 0, vy: 0, isThrown: false, scale: 1 };
 
@@ -211,9 +209,9 @@
 
             if (dy < -20) {
                 ball.vx = dx * 0.055;
-                // Balanced scale vector for the extra gravity hangtime
                 ball.vy = dy * 0.062;
                 ball.isThrown = true;
+                ballHistory = []; // Reset visual trail history arrays on dynamic flick instance
             }
         });
 
@@ -255,6 +253,7 @@
             streakCount = 0;
             particles = [];
             floaters = [];
+            ballHistory = [];
             bin.x = 165;
             document.getElementById('streak-display').innerText = streakCount;
             resetBall();
@@ -269,6 +268,7 @@
             ball.scale = 1;
             ball.radius = ballDefault.radius;
             ball.isThrown = false;
+            ballHistory = [];
             adjustEnvironmentDifficulty();
         }
 
@@ -313,7 +313,6 @@
 
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-                // Horizon Wall Split line moved slightly lower to compensate for height scaling
                 let floorGrad = ctx.createLinearGradient(0, 220, 0, canvas.height);
                 floorGrad.addColorStop(0, '#cbd5e1');
                 floorGrad.addColorStop(1, '#94a3b8');
@@ -340,14 +339,44 @@
                 ctx.ellipse(bin.x + (bin.width/2), bin.y, bin.width/2, 12, 0, 0, Math.PI * 2);
                 ctx.fill();
 
+                // ─── MOTION PATH TRACER RENDER ENGINE ───
+                if (ball.isThrown && ballHistory.length > 1) {
+                    ctx.save();
+                    ctx.setLineDash([4, 4]); // Dotted look
+                    ctx.lineCap = 'round';
+                    ctx.lineJoin = 'round';
+                    
+                    for (let i = 1; i < ballHistory.length; i++) {
+                        let p1 = ballHistory[i - 1];
+                        let p2 = ballHistory[i];
+                        
+                        // Slowly scale visibility alpha down as history goes backward
+                        let alpha = (i / ballHistory.length) * 0.45;
+                        ctx.strokeStyle = `rgba(59, 130, 246, ${alpha})`;
+                        
+                        // Line thickness matches shrinking spatial perspective scaling
+                        ctx.lineWidth = p2.radius * 0.5; 
+                        
+                        ctx.beginPath();
+                        ctx.moveTo(p1.x, p1.y);
+                        ctx.lineTo(p2.x, p2.y);
+                        ctx.stroke();
+                    }
+                    ctx.restore();
+                }
+
                 if (ball.isThrown) {
+                    // Record flight tracking history footprint mapping coordinates
+                    ballHistory.push({ x: ball.x, y: ball.y, radius: ball.radius });
+                    if (ballHistory.length > 15) {
+                        ballHistory.shift(); // Lock trail trace array bounds sizing cap limits
+                    }
+
                     ball.vx += windForce * windDirection * 0.15;
                     ball.x += ball.vx;
                     ball.y += ball.vy;
-                    // Slightly softened gravity index (0.22 instead of 0.28) for smooth high-arcs
                     ball.vy += 0.22;
 
-                    // Extended shrinkage rate to match deeper visual distance
                     ball.scale = Math.max(0.32, ball.scale - 0.013);
                     ball.radius = ballDefault.size * ball.scale;
 
