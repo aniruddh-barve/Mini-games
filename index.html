@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Progressive Paper Toss Pro (Vector Lock Engine)</title>
+    <title>Progressive Paper Toss Pro (Calibrated Frame Engine)</title>
     <style>
         body {
             margin: 0;
@@ -139,8 +139,8 @@
         <div id="wind-banner">💨 Wind: <span id="wind-text">CALM</span></div>
 
         <div id="overlay">
-            <h2 id="title-text">🔮 VECTOR LOCKED ARENA 📄</h2>
-            <p id="body-text">Precision engine update! Throws are now mapped directly to your full stroke path, ignoring finger lift-off jitter completely.</p>
+            <h2 id="title-text">🔮 CALIBRATED SMOOTH 📄</h2>
+            <p id="body-text">Returned to frame-by-frame velocity sampling with an active anti-twitch layout shield. Feel the momentum balance.</p>
             <button class="btn" id="action-btn" onclick="startGame()">START TOSSING</button>
         </div>
     </div>
@@ -174,9 +174,8 @@
         const ballDefault = { x: 200, y: 640, radius: 25, size: 25 };
         let ball = { ...ballDefault, vx: 0, vy: 0, isThrown: false, scale: 1 };
 
-        // Pure vector origin variables
-        let swipeStart = { x: 0, y: 0, time: 0 };
-        let swipeCurrent = { x: 0, y: 0 };
+        // Shifting sample arrays for tracking raw frames smoothly
+        let sampleBuffer = [];
         let isDragging = false;
 
         const hypeWords = ["NICE!", "SWISH!", "EASY!", "UNSTOPPABLE!", "GODLIKE!", "MONSTER!"];
@@ -189,13 +188,10 @@
 
             if (Math.hypot(clickX - ball.x, clickY - ball.y) < ball.radius * 2.2) {
                 isDragging = true;
-                
-                // Establish absolute trajectory locks
-                swipeStart = { x: clickX, y: clickY, time: performance.now() };
-                swipeCurrent = { x: clickX, y: clickY };
-                
                 ball.x = clickX;
                 ball.y = clickY;
+                
+                sampleBuffer = [{ x: clickX, y: clickY, time: performance.now() }];
             }
         });
 
@@ -205,8 +201,12 @@
             const moveX = ((e.clientX - rect.left) / rect.width) * canvas.width;
             const moveY = ((e.clientY - rect.top) / rect.height) * canvas.height;
 
-            swipeCurrent.x = moveX;
-            swipeCurrent.y = moveY;
+            sampleBuffer.push({ x: moveX, y: moveY, time: performance.now() });
+            
+            // Keep up to 5 historical frames to capture true movement trend
+            if (sampleBuffer.length > 5) {
+                sampleBuffer.shift();
+            }
 
             ball.x = moveX;
             ball.y = moveY;
@@ -216,32 +216,37 @@
             if (!isDragging) return;
             isDragging = false;
 
-            let duration = performance.now() - swipeStart.time;
-            if (duration <= 0) duration = 16;
+            if (sampleBuffer.length < 3) {
+                resetBall();
+                return;
+            }
 
-            // Total overall distance vector components
-            let distanceX = swipeCurrent.x - swipeStart.x;
-            let distanceY = swipeCurrent.y - swipeStart.y;
+            // ANTI-TWITCH PROTOCOL: Drop the absolute final touch point entirely. 
+            // It frequently contains the physical hardware roll glitch as skin lifts off.
+            let endPoint = sampleBuffer[sampleBuffer.length - 2]; 
+            let startPoint = sampleBuffer[0]; 
 
-            // Compute overall stroke speed (Distance / Total Swipe Duration)
-            // This neutralizes the hardware roll glitch on release completely
-            let velocityX = distanceX / duration;
-            let velocityY = distanceY / duration;
+            let deltaTime = endPoint.time - startPoint.time;
+            if (deltaTime <= 0) deltaTime = 16;
 
-            // Scale physics multipliers elegantly to the calculated structural engine steps
-            let finalVx = velocityX * 18.5;
-            let finalVy = velocityY * 22.0;
+            // Compute precise velocity over clean, uncorrupted moving frames
+            let rawVx = (endPoint.x - startPoint.x) / deltaTime;
+            let rawVy = (endPoint.y - startPoint.y) / deltaTime;
 
-            // Safe bounding clamps to make sure the ball stays within predictable bounds
-            const MAX_X_SPEED = 8.5; 
-            const MAX_Y_SPEED = -9.0;
-            const MIN_Y_THROW = -19.5; 
+            // Balanced multipliers—reduced sensitivity slightly to guarantee stable tracking
+            let finalVx = rawVx * 15.0;
+            let finalVy = rawVy * 15.5;
+
+            // Clean, responsive bounds clamping structural safety arrays
+            const MAX_X_SPEED = 9.0; 
+            const MAX_Y_SPEED = -9.5;
+            const MIN_Y_THROW = -18.5; 
 
             ball.vx = Math.max(-MAX_X_SPEED, Math.min(MAX_X_SPEED, finalVx));
             ball.vy = Math.max(MIN_Y_THROW, Math.min(MAX_Y_SPEED, finalVy));
 
-            // Must be a definitive forward/upward flick
-            if (ball.vy < -5 && distanceY < -40) {
+            // Must be an intentional upward toss gesture
+            if (ball.vy < -3.5) {
                 ball.isThrown = true;
                 ballHistory = []; 
             } else {
@@ -303,6 +308,7 @@
             ball.radius = ballDefault.radius;
             ball.isThrown = false;
             ballHistory = [];
+            sampleBuffer = [];
             adjustEnvironmentDifficulty();
         }
 
@@ -379,7 +385,7 @@
                     ctx.restore();
                 }
 
-                // Move bin handles if streak threshold reached
+                // Handle basket movement rules across streaks
                 if (streakCount >= 3) {
                     let currentDynamicSpeed = bin.baseSpeed + (streakCount * 0.06);
                     bin.x += currentDynamicSpeed * bin.currentDirection;
@@ -407,7 +413,7 @@
                     ball.vx += windForce * windDirection * 0.15;
                     ball.x += ball.vx;
                     ball.y += ball.vy;
-                    ball.vy += 0.22; // Gravity
+                    ball.vy += 0.22; // Gravity Constant
 
                     ball.scale = Math.max(0.32, ball.scale - 0.013);
                     ball.radius = ballDefault.size * ball.scale;
@@ -459,7 +465,7 @@
                 ctx.fill();
                 ctx.stroke();
 
-                // Particle engines render loops
+                // Particle simulation renderings
                 for (let i = particles.length - 1; i >= 0; i--) {
                     let p = particles[i];
                     p.x += p.vx; p.y += p.vy; p.vy += 0.2; p.alpha -= p.decay;
