@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Progressive Paper Toss Arcade</title>
+    <title>Progressive Paper Toss Pro (Jumbo Area)</title>
     <style>
         body {
             margin: 0;
@@ -22,7 +22,7 @@
 
         #game-container {
             width: 95vw;
-            max-width: 400px;
+            max-width: 420px;
             background: #1e293b;
             border: 6px solid #334155;
             border-radius: 24px;
@@ -112,7 +112,7 @@
 
         #wind-banner {
             position: absolute;
-            bottom: 150px;
+            bottom: 230px; /* Elevated to fit the taller canvas size */
             width: 100%;
             text-align: center;
             font-weight: 800;
@@ -134,13 +134,13 @@
             </div>
         </div>
 
-        <canvas id="gameCanvas" width="400" height="530"></canvas>
+        <canvas id="gameCanvas" width="400" height="650"></canvas>
         
         <div id="wind-banner">💨 Wind: <span id="wind-text">CALM</span></div>
 
         <div id="overlay">
-            <h2 id="title-text">🗑️ DYNAMIC TOSS 📄</h2>
-            <p id="body-text">Starts completely easy with zero wind and a still target! Land consecutive buckets to increase difficulty, unlock wind currents, and make the basket move!</p>
+            <h2 id="title-text">🗑️ TALL TOSS ARENA 📄</h2>
+            <p id="body-text">We've expanded the arena! Enjoy higher sky-arcs and a spacious touch flick zone underneath the elevated paper ball.</p>
             <button class="btn" id="action-btn" onclick="startGame()">START TOSSING</button>
         </div>
     </div>
@@ -154,7 +154,6 @@
         let streakCount = 0;
         let gameRunning = false;
 
-        // Visual juice queues
         let particles = [];
         let floaters = [];
         let screenShake = 0;
@@ -162,17 +161,18 @@
         let windForce = 0;
         let windDirection = 0;
 
-        // Trash Bin Engine Configuration
+        // Trash Bin Target: Shifted slightly lower down the wall to accentuate the longer drop distance
         const bin = { 
             x: 165, 
-            y: 110, 
-            width: 70, 
+            y: 130, 
+            width: 72, 
             height: 85, 
             currentDirection: 1,
-            baseSpeed: 1.8
+            baseSpeed: 2.0
         };
         
-        const ballDefault = { x: 200, y: 460, radius: 25, size: 25 };
+        // Elevated Paper Ball position: moved from y: 460 up to y: 520, leaving lots of flick space down to y: 650
+        const ballDefault = { x: 200, y: 520, radius: 25, size: 25 };
         let ball = { ...ballDefault, vx: 0, vy: 0, isThrown: false, scale: 1 };
 
         let touchStart = { x: 0, y: 0 };
@@ -187,7 +187,7 @@
             const clickX = ((e.clientX - rect.left) / rect.width) * canvas.width;
             const clickY = ((e.clientY - rect.top) / rect.height) * canvas.height;
 
-            if (Math.hypot(clickX - ball.x, clickY - ball.y) < ball.radius * 1.8) {
+            if (Math.hypot(clickX - ball.x, clickY - ball.y) < ball.radius * 2.2) {
                 isDragging = true;
                 touchStart = { x: clickX, y: clickY };
                 touchCurrent = { x: clickX, y: clickY };
@@ -208,31 +208,30 @@
             let dx = touchCurrent.x - touchStart.x;
             let dy = touchCurrent.y - touchStart.y;
 
+            // Trigger flick execution
             if (dy < -20) {
                 ball.vx = dx * 0.065;
-                ball.vy = dy * 0.075;
+                // Slightly adjusted throw velocity index to balance out the extra canvas vertical travel space
+                ball.vy = dy * 0.072;
                 ball.isThrown = true;
             }
         });
 
         function adjustEnvironmentDifficulty() {
-            // Level 1: Under 3 Streak -> Zero wind, basket stationary in middle
             if (streakCount < 3) {
                 windForce = 0;
                 document.getElementById('wind-text').innerText = "CALM";
                 document.getElementById('combo-badge').style.display = 'none';
             } 
-            // Level 2: 3-6 Streak -> Small wind introduced, basket begins moving slowly
             else if (streakCount >= 3 && streakCount < 7) {
                 windDirection = Math.random() < 0.5 ? -1 : 1;
-                windForce = 0.04 + (Math.random() * 0.04);
+                windForce = 0.045 + (Math.random() * 0.04);
                 renderWindUI();
                 showBadge("🔥 ON FIRE");
             } 
-            // Level 3: 7+ Streak -> Chaotic speed-slashing winds and fast moving basket
             else {
                 windDirection = Math.random() < 0.5 ? -1 : 1;
-                windForce = 0.09 + (Math.random() * 0.08);
+                windForce = 0.095 + (Math.random() * 0.085);
                 renderWindUI();
                 showBadge("👑 UNSTOPPABLE");
             }
@@ -314,21 +313,20 @@
 
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-                // Floor Graphic
-                let floorGrad = ctx.createLinearGradient(0, 150, 0, canvas.height);
+                // Desk Horizon Depth Wall Environment Line
+                let floorGrad = ctx.createLinearGradient(0, 180, 0, canvas.height);
                 floorGrad.addColorStop(0, '#cbd5e1');
                 floorGrad.addColorStop(1, '#94a3b8');
                 ctx.fillStyle = floorGrad;
-                ctx.fillRect(0, 150, canvas.width, canvas.height - 150);
+                ctx.fillRect(0, 180, canvas.width, canvas.height - 180);
                 ctx.fillStyle = '#64748b';
-                ctx.fillRect(0, 146, canvas.width, 4);
+                ctx.fillRect(0, 176, canvas.width, 4);
 
-                // Basket Motion Logic: Only move back and forth if streak is 3 or greater
+                // Basket Motion Config
                 if (streakCount >= 3) {
-                    let currentDynamicSpeed = bin.baseSpeed + (streakCount * 0.25);
+                    let currentDynamicSpeed = bin.baseSpeed + (streakCount * 0.22);
                     bin.x += currentDynamicSpeed * bin.currentDirection;
                     
-                    // Bounce away from edge boundaries safely
                     if (bin.x < 25) {
                         bin.x = 25;
                         bin.currentDirection = 1;
@@ -338,7 +336,7 @@
                     }
                 }
 
-                // Back rim rim architecture
+                // Back Lid Interior Mesh Rim
                 ctx.fillStyle = '#1e293b';
                 ctx.beginPath();
                 ctx.ellipse(bin.x + (bin.width/2), bin.y, bin.width/2, 12, 0, 0, Math.PI * 2);
@@ -348,15 +346,16 @@
                     ball.vx += windForce * windDirection * 0.15;
                     ball.x += ball.vx;
                     ball.y += ball.vy;
-                    ball.vy += 0.3;
+                    ball.vy += 0.28; // Tweak gravity indexes down slightly for the bigger jump window
 
-                    ball.scale = Math.max(0.38, ball.scale - 0.022);
+                    // Scaled calculation matching larger sky space
+                    ball.scale = Math.max(0.35, ball.scale - 0.016);
                     ball.radius = ballDefault.size * ball.scale;
 
-                    // Expanded collision hitbox threshold mapping for beginner loops
+                    // Perfect rim matching boundary checker
                     if (ball.vy >= 0 && ball.y >= bin.y - 12 && ball.y <= bin.y + 36) {
                         let binCenterX = bin.x + (bin.width / 2);
-                        let allowance = (bin.width / 2) + 6; // Gracious early layout spacing tolerance
+                        let allowance = (bin.width / 2) + 7;
 
                         if (Math.abs(ball.x - binCenterX) < allowance) {
                             streakCount++;
@@ -392,7 +391,7 @@
                 ctx.closePath();
                 ctx.fill();
 
-                // Vector dragging line render
+                // Custom vector drag pointer target lines
                 if (isDragging) {
                     ctx.strokeStyle = '#10b981';
                     ctx.lineWidth = 5;
@@ -412,7 +411,7 @@
                 ctx.fill();
                 ctx.stroke();
 
-                // Render Active Burst Particles
+                // Particles updating engine
                 for (let i = particles.length - 1; i >= 0; i--) {
                     let p = particles[i];
                     p.x += p.vx; p.y += p.vy; p.vy += 0.2; p.alpha -= p.decay;
@@ -421,13 +420,13 @@
                     ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2); ctx.fill(); ctx.restore();
                 }
 
-                // Render Float Strings Text Tags
+                // Floating words rendering loop
                 for (let i = floaters.length - 1; i >= 0; i--) {
                     let f = floaters[i];
                     f.y += f.vy; f.alpha -= 0.02;
                     if (f.alpha <= 0) { floaters.splice(i, 1); continue; }
                     ctx.save(); ctx.globalAlpha = f.alpha; ctx.fillStyle = f.color;
-                    ctx.font = `900 ${f.size} 'Segoe UI', sans-serif`; ctx.textAlign = 'center';
+                    f.font = `900 ${f.size} 'Segoe UI', sans-serif`; f.textAlign = 'center';
                     ctx.fillText(f.text, f.x, f.y); ctx.restore();
                 }
 
@@ -445,7 +444,7 @@
             document.getElementById('overlay').style.display = 'flex';
             document.getElementById('title-text').innerText = "🔴 STREAK ENDED! 🔴";
             document.getElementById('body-text').innerText = `The paper missed the bin!\n\nMax Peak Streak Hit: ${streakCount}`;
-            document.getElementById('action-btn').innerText = "RESET FISHING NET";
+            document.getElementById('action-btn').innerText = "PLAY AGAIN";
         }
 
         requestAnimationFrame(updateEngineLoop);
