@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Progressive Paper Toss Pro (Trajectory Tracer)</title>
+    <title>Progressive Paper Toss Pro (True Momentum Physics)</title>
     <style>
         body {
             margin: 0;
@@ -139,8 +139,8 @@
         <div id="wind-banner">💨 Wind: <span id="wind-text">CALM</span></div>
 
         <div id="overlay">
-            <h2 id="title-text">🔮 TRACER ARENA GOAL 📄</h2>
-            <p id="body-text">Throw tracking enabled! Watch your ball leave a beautiful fading motion path to perfectly analyze your high-arching curves.</p>
+            <h2 id="title-text">🔮 SMOOTH TRACER ARENA 📄</h2>
+            <p id="body-text">Physics update complete! Flick dynamics are now based on actual finger swipe speed for smooth, reliable, and predictable ball tracking.</p>
             <button class="btn" id="action-btn" onclick="startGame()">START TOSSING</button>
         </div>
     </div>
@@ -156,7 +156,7 @@
 
         let particles = [];
         let floaters = [];
-        let ballHistory = []; // Engine array to hold flight telemetry tracking coordinates
+        let ballHistory = []; 
         let screenShake = 0;
 
         let windForce = 0;
@@ -174,8 +174,9 @@
         const ballDefault = { x: 200, y: 640, radius: 25, size: 25 };
         let ball = { ...ballDefault, vx: 0, vy: 0, isThrown: false, scale: 1 };
 
-        let touchStart = { x: 0, y: 0 };
-        let touchCurrent = { x: 0, y: 0 };
+        // Real-time tracking positions for momentum calculus
+        let lastPosition = { x: 0, y: 0, time: 0 };
+        let currentPosition = { x: 0, y: 0, time: 0 };
         let isDragging = false;
 
         const hypeWords = ["NICE!", "SWISH!", "EASY!", "UNSTOPPABLE!", "GODLIKE!", "MONSTER!"];
@@ -188,30 +189,61 @@
 
             if (Math.hypot(clickX - ball.x, clickY - ball.y) < ball.radius * 2.2) {
                 isDragging = true;
-                touchStart = { x: clickX, y: clickY };
-                touchCurrent = { x: clickX, y: clickY };
+                ball.x = clickX;
+                ball.y = clickY;
+                
+                let now = performance.now();
+                lastPosition = { x: clickX, y: clickY, time: now };
+                currentPosition = { x: clickX, y: clickY, time: now };
             }
         });
 
         canvas.addEventListener('pointermove', (e) => {
             if (!isDragging) return;
             const rect = canvas.getBoundingClientRect();
-            touchCurrent.x = ((e.clientX - rect.left) / rect.width) * canvas.width;
-            touchCurrent.y = ((e.clientY - rect.top) / rect.height) * canvas.height;
+            const moveX = ((e.clientX - rect.left) / rect.width) * canvas.width;
+            const moveY = ((e.clientY - rect.top) / rect.height) * canvas.height;
+
+            // Shift telemetry arrays down
+            lastPosition = { ...currentPosition };
+            currentPosition = { x: moveX, y: moveY, time: performance.now() };
+
+            // Physically pin paper object coordinates straight to the user pointer context bounds
+            ball.x = moveX;
+            ball.y = moveY;
         });
 
         canvas.addEventListener('pointerup', () => {
             if (!isDragging) return;
             isDragging = false;
 
-            let dx = touchCurrent.x - touchStart.x;
-            let dy = touchCurrent.y - touchStart.y;
+            let deltaTime = currentPosition.time - lastPosition.time;
+            
+            // Safety fallback check if delta drops to zero to prevent infinity calculations
+            if (deltaTime <= 0) deltaTime = 16; 
 
-            if (dy < -20) {
-                ball.vx = dx * 0.055;
-                ball.vy = dy * 0.062;
+            // Calculate true instantaneous momentum metrics (pixels traveled per millisecond)
+            let rawVx = (currentPosition.x - lastPosition.x) / deltaTime;
+            let rawVy = (currentPosition.y - lastPosition.y) / deltaTime;
+
+            // Translate into frame-rate execution step scales
+            let finalVx = rawVx * 16.6;
+            let finalVy = rawVy * 16.6;
+
+            // Enforce vector bounds clamping structures so ball cannot act wild
+            const MAX_X_SPEED = 14;
+            const MAX_Y_SPEED = -12;
+            const MIN_Y_THROW = -18; // Hard upward floor ceiling constraint safety checks
+
+            ball.vx = Math.max(-MAX_X_SPEED, Math.min(MAX_X_SPEED, finalVx));
+            ball.vy = Math.max(MIN_Y_THROW, Math.min(MAX_Y_SPEED, finalVy));
+
+            // Only switch state to active flight if user actually tossed the ball upward
+            if (ball.vy < -4) {
                 ball.isThrown = true;
-                ballHistory = []; // Reset visual trail history arrays on dynamic flick instance
+                ballHistory = []; 
+            } else {
+                resetBall(); // Snap back elegantly if it was just dropped or jittered
             }
         });
 
@@ -313,6 +345,7 @@
 
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+                // 1. Draw Background Floor
                 let floorGrad = ctx.createLinearGradient(0, 220, 0, canvas.height);
                 floorGrad.addColorStop(0, '#cbd5e1');
                 floorGrad.addColorStop(1, '#94a3b8');
@@ -321,6 +354,30 @@
                 ctx.fillStyle = '#64748b';
                 ctx.fillRect(0, 216, canvas.width, 4);
 
+                // 2. Draw Motion Path Tracer Line
+                if (ball.isThrown && ballHistory.length > 1) {
+                    ctx.save();
+                    ctx.setLineDash([6, 6]); 
+                    ctx.lineCap = 'round';
+                    ctx.lineJoin = 'round';
+                    
+                    for (let i = 1; i < ballHistory.length; i++) {
+                        let p1 = ballHistory[i - 1];
+                        let p2 = ballHistory[i];
+                        
+                        let alpha = (i / ballHistory.length) * 0.6;
+                        ctx.strokeStyle = `rgba(37, 99, 235, ${alpha})`;
+                        ctx.lineWidth = Math.max(3, p2.radius * 0.4); 
+                        
+                        ctx.beginPath();
+                        ctx.moveTo(p1.x, p1.y);
+                        ctx.lineTo(p2.x, p2.y);
+                        ctx.stroke();
+                    }
+                    ctx.restore();
+                }
+
+                // Move bin handles if streak threshold reached
                 if (streakCount >= 3) {
                     let currentDynamicSpeed = bin.baseSpeed + (streakCount * 0.06);
                     bin.x += currentDynamicSpeed * bin.currentDirection;
@@ -339,43 +396,16 @@
                 ctx.ellipse(bin.x + (bin.width/2), bin.y, bin.width/2, 12, 0, 0, Math.PI * 2);
                 ctx.fill();
 
-                // ─── MOTION PATH TRACER RENDER ENGINE ───
-                if (ball.isThrown && ballHistory.length > 1) {
-                    ctx.save();
-                    ctx.setLineDash([4, 4]); // Dotted look
-                    ctx.lineCap = 'round';
-                    ctx.lineJoin = 'round';
-                    
-                    for (let i = 1; i < ballHistory.length; i++) {
-                        let p1 = ballHistory[i - 1];
-                        let p2 = ballHistory[i];
-                        
-                        // Slowly scale visibility alpha down as history goes backward
-                        let alpha = (i / ballHistory.length) * 0.45;
-                        ctx.strokeStyle = `rgba(59, 130, 246, ${alpha})`;
-                        
-                        // Line thickness matches shrinking spatial perspective scaling
-                        ctx.lineWidth = p2.radius * 0.5; 
-                        
-                        ctx.beginPath();
-                        ctx.moveTo(p1.x, p1.y);
-                        ctx.lineTo(p2.x, p2.y);
-                        ctx.stroke();
-                    }
-                    ctx.restore();
-                }
-
                 if (ball.isThrown) {
-                    // Record flight tracking history footprint mapping coordinates
                     ballHistory.push({ x: ball.x, y: ball.y, radius: ball.radius });
-                    if (ballHistory.length > 15) {
-                        ballHistory.shift(); // Lock trail trace array bounds sizing cap limits
+                    if (ballHistory.length > 18) {
+                        ballHistory.shift(); 
                     }
 
                     ball.vx += windForce * windDirection * 0.15;
                     ball.x += ball.vx;
                     ball.y += ball.vy;
-                    ball.vy += 0.22;
+                    ball.vy += 0.22; // Gravity
 
                     ball.scale = Math.max(0.32, ball.scale - 0.013);
                     ball.radius = ballDefault.size * ball.scale;
@@ -404,6 +434,7 @@
                     }
                 }
 
+                // Render Basket Frame structures
                 let binGrad = ctx.createLinearGradient(bin.x, bin.y, bin.x + bin.width, bin.y);
                 binGrad.addColorStop(0, '#475569');
                 binGrad.addColorStop(0.5, '#64748b');
@@ -417,16 +448,7 @@
                 ctx.closePath();
                 ctx.fill();
 
-                if (isDragging) {
-                    ctx.strokeStyle = '#10b981';
-                    ctx.lineWidth = 5;
-                    ctx.lineCap = 'round';
-                    ctx.beginPath();
-                    ctx.moveTo(ball.x, ball.y);
-                    ctx.lineTo(ball.x - (touchCurrent.x - touchStart.x), ball.y - (touchCurrent.y - touchStart.y));
-                    ctx.stroke();
-                }
-
+                // Render ball graphic instance
                 ctx.fillStyle = '#ffffff';
                 ctx.strokeStyle = '#cbd5e1';
                 ctx.lineWidth = 2.5;
@@ -435,6 +457,7 @@
                 ctx.fill();
                 ctx.stroke();
 
+                // Particle systems updates
                 for (let i = particles.length - 1; i >= 0; i--) {
                     let p = particles[i];
                     p.x += p.vx; p.y += p.vy; p.vy += 0.2; p.alpha -= p.decay;
