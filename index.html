@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Progressive Paper Toss Pro (True Momentum Physics)</title>
+    <title>Progressive Paper Toss Pro (Stabilized Flick Engine)</title>
     <style>
         body {
             margin: 0;
@@ -139,8 +139,8 @@
         <div id="wind-banner">💨 Wind: <span id="wind-text">CALM</span></div>
 
         <div id="overlay">
-            <h2 id="title-text">🔮 SMOOTH TRACER ARENA 📄</h2>
-            <p id="body-text">Physics update complete! Flick dynamics are now based on actual finger swipe speed for smooth, reliable, and predictable ball tracking.</p>
+            <h2 id="title-text">🔮 STABILIZED TRACER 📄</h2>
+            <p id="body-text">Flick engine calibrated! Motion jitter filtering active to keep throws smooth, precise, and completely true to your swipe.</p>
             <button class="btn" id="action-btn" onclick="startGame()">START TOSSING</button>
         </div>
     </div>
@@ -174,9 +174,8 @@
         const ballDefault = { x: 200, y: 640, radius: 25, size: 25 };
         let ball = { ...ballDefault, vx: 0, vy: 0, isThrown: false, scale: 1 };
 
-        // Real-time tracking positions for momentum calculus
-        let lastPosition = { x: 0, y: 0, time: 0 };
-        let currentPosition = { x: 0, y: 0, time: 0 };
+        // Position buffer array to handle sample smoothing and kill liftoff micro-jitters
+        let touchHistory = [];
         let isDragging = false;
 
         const hypeWords = ["NICE!", "SWISH!", "EASY!", "UNSTOPPABLE!", "GODLIKE!", "MONSTER!"];
@@ -192,9 +191,7 @@
                 ball.x = clickX;
                 ball.y = clickY;
                 
-                let now = performance.now();
-                lastPosition = { x: clickX, y: clickY, time: now };
-                currentPosition = { x: clickX, y: clickY, time: now };
+                touchHistory = [{ x: clickX, y: clickY, time: performance.now() }];
             }
         });
 
@@ -204,11 +201,13 @@
             const moveX = ((e.clientX - rect.left) / rect.width) * canvas.width;
             const moveY = ((e.clientY - rect.top) / rect.height) * canvas.height;
 
-            // Shift telemetry arrays down
-            lastPosition = { ...currentPosition };
-            currentPosition = { x: moveX, y: moveY, time: performance.now() };
+            touchHistory.push({ x: moveX, y: moveY, time: performance.now() });
+            
+            // Maintain a shifting window of the last 4 frames for clean averaging metrics
+            if (touchHistory.length > 4) {
+                touchHistory.shift();
+            }
 
-            // Physically pin paper object coordinates straight to the user pointer context bounds
             ball.x = moveX;
             ball.y = moveY;
         });
@@ -217,33 +216,53 @@
             if (!isDragging) return;
             isDragging = false;
 
-            let deltaTime = currentPosition.time - lastPosition.time;
-            
-            // Safety fallback check if delta drops to zero to prevent infinity calculations
-            if (deltaTime <= 0) deltaTime = 16; 
+            // If we don't have enough data points, drop out cleanly
+            if (touchHistory.length < 2) {
+                resetBall();
+                return;
+            }
 
-            // Calculate true instantaneous momentum metrics (pixels traveled per millisecond)
-            let rawVx = (currentPosition.x - lastPosition.x) / deltaTime;
-            let rawVy = (currentPosition.y - lastPosition.y) / deltaTime;
+            // Calculate historical average velocity instead of a single brittle frame delta
+            let totalVx = 0;
+            let totalVy = 0;
+            let samples = 0;
 
-            // Translate into frame-rate execution step scales
-            let finalVx = rawVx * 16.6;
-            let finalVy = rawVy * 16.6;
+            for (let i = 1; i < touchHistory.length; i++) {
+                let p1 = touchHistory[i - 1];
+                let p2 = touchHistory[i];
+                let dt = p2.time - p1.time;
 
-            // Enforce vector bounds clamping structures so ball cannot act wild
-            const MAX_X_SPEED = 14;
-            const MAX_Y_SPEED = -12;
-            const MIN_Y_THROW = -18; // Hard upward floor ceiling constraint safety checks
+                if (dt > 0) {
+                    totalVx += (p2.x - p1.x) / dt;
+                    totalVy += (p2.y - p1.y) / dt;
+                    samples++;
+                }
+            }
 
-            ball.vx = Math.max(-MAX_X_SPEED, Math.min(MAX_X_SPEED, finalVx));
-            ball.vy = Math.max(MIN_Y_THROW, Math.min(MAX_Y_SPEED, finalVy));
+            // Fallback safety filter
+            if (samples === 0) {
+                resetBall();
+                return;
+            }
 
-            // Only switch state to active flight if user actually tossed the ball upward
+            // Extract the buffered mean metrics scaled directly to frame-step vectors
+            let avgVx = (totalVx / samples) * 16.6;
+            let avgVy = (totalVy / samples) * 16.6;
+
+            // Enforce solid vector constraints to completely stabilize physics
+            const MAX_X_SPEED = 10; 
+            const MAX_Y_SPEED = -10;
+            const MIN_Y_THROW = -19; 
+
+            ball.vx = Math.max(-MAX_X_SPEED, Math.min(MAX_X_SPEED, avgVx));
+            ball.vy = Math.max(MIN_Y_THROW, Math.min(MAX_Y_SPEED, avgVy));
+
+            // Verify a valid forward throw took place
             if (ball.vy < -4) {
                 ball.isThrown = true;
                 ballHistory = []; 
             } else {
-                resetBall(); // Snap back elegantly if it was just dropped or jittered
+                resetBall();
             }
         });
 
@@ -301,6 +320,7 @@
             ball.radius = ballDefault.radius;
             ball.isThrown = false;
             ballHistory = [];
+            touchHistory = [];
             adjustEnvironmentDifficulty();
         }
 
@@ -377,7 +397,7 @@
                     ctx.restore();
                 }
 
-                // Move bin handles if streak threshold reached
+                // Bin difficulty step loop controls
                 if (streakCount >= 3) {
                     let currentDynamicSpeed = bin.baseSpeed + (streakCount * 0.06);
                     bin.x += currentDynamicSpeed * bin.currentDirection;
@@ -405,7 +425,7 @@
                     ball.vx += windForce * windDirection * 0.15;
                     ball.x += ball.vx;
                     ball.y += ball.vy;
-                    ball.vy += 0.22; // Gravity
+                    ball.vy += 0.22; // Gravity Constant
 
                     ball.scale = Math.max(0.32, ball.scale - 0.013);
                     ball.radius = ballDefault.size * ball.scale;
@@ -434,7 +454,7 @@
                     }
                 }
 
-                // Render Basket Frame structures
+                // Render basket
                 let binGrad = ctx.createLinearGradient(bin.x, bin.y, bin.x + bin.width, bin.y);
                 binGrad.addColorStop(0, '#475569');
                 binGrad.addColorStop(0.5, '#64748b');
@@ -448,7 +468,7 @@
                 ctx.closePath();
                 ctx.fill();
 
-                // Render ball graphic instance
+                // Render paper ball instance
                 ctx.fillStyle = '#ffffff';
                 ctx.strokeStyle = '#cbd5e1';
                 ctx.lineWidth = 2.5;
@@ -457,7 +477,7 @@
                 ctx.fill();
                 ctx.stroke();
 
-                // Particle systems updates
+                // Render UI system vectors
                 for (let i = particles.length - 1; i >= 0; i--) {
                     let p = particles[i];
                     p.x += p.vx; p.y += p.vy; p.vy += 0.2; p.alpha -= p.decay;
