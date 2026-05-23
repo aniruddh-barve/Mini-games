@@ -101,7 +101,7 @@
             return points;
         }
 
-        let startTouchPos = { x: 0, y: 0 }; // Track anchor point
+        let startTouchPos = { x: 0, y: 0 }; 
         let lastTouchPos = { x: 0, y: 0, time: 0 };
         let currentTouchPos = { x: 0, y: 0, time: 0 };
         let isDragging = false;
@@ -134,12 +134,11 @@
             if (!isDragging) return;
             isDragging = false;
             
-            // Check absolute delta path length from start point
+            // Increased movement verification threshold to 60 pixels to completely ignore minor flicks
             let totalDeltaX = Math.abs(currentTouchPos.x - startTouchPos.x);
             let totalDeltaY = Math.abs(currentTouchPos.y - startTouchPos.y);
             
-            // Reset position immediately if distance is too small (e.g. accidental drag or static lift)
-            if (totalDeltaX < 30 && totalDeltaY < 30) {
+            if (totalDeltaX < 60 && totalDeltaY < 60) {
                 resetBall();
                 return;
             }
