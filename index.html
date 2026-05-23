@@ -3,21 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Paper Toss Pro - Realistic Bounces</title>
+    <title>Paper Toss - Office</title>
     <style>
-        body { margin: 0; padding: 0; background: #0f172a; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; user-select: none; touch-action: none; color: #fff; transition: background 0.5s ease; }
+        body { margin: 0; padding: 0; background: #0f172a; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; user-select: none; touch-action: none; color: #fff; }
         #game-container { width: 95vw; max-width: 420px; background: #1e293b; border: 6px solid #334155; border-radius: 24px; box-shadow: 0 20px 40px rgba(0,0,0,0.6); overflow: hidden; display: flex; flex-direction: column; position: relative; }
-        #ui-layer { display: flex; justify-content: space-between; align-items: center; background: #0f172a; color: #fff; padding: 14px 20px; font-size: 1rem; font-weight: 900; z-index: 5; border-bottom: 2px solid #334155; }
+        #ui-layer { display: flex; justify-content: space-between; align-items: center; background: rgba(15, 23, 42, 0.85); color: #fff; padding: 14px 20px; font-size: 1rem; font-weight: 900; z-index: 5; border-bottom: 2px solid #334155; backdrop-filter: blur(4px); }
         .stat-box { display: flex; align-items: center; gap: 6px; }
-        #combo-badge { background: #ef4444; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem; display: none; animation: pulse 0.3s infinite alternate; }
-        @keyframes pulse { from { transform: scale(1); } to { transform: scale(1.1); } }
         canvas { background: transparent; display: block; width: 100%; height: auto; }
         #overlay { position: absolute; top: 50px; bottom: 0; left: 0; right: 0; background: rgba(15, 23, 42, 0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 24px; z-index: 10; }
         h2 { color: #f59e0b; margin-bottom: 12px; font-size: 1.8rem; letter-spacing: 1px; }
-        p { color: #94a3b8; font-size: 0.95rem; line-height: 1.6; margin-bottom: 30px; }
-        .btn { background: #3b82f6; color: white; border: none; padding: 14px 36px; font-size: 1.1rem; font-weight: bold; border-radius: 50px; cursor: pointer; box-shadow: 0 4px 0 #1d4ed8; }
+        p { color: #94a3b8; font-size: 0.95rem; line-height: 1.6; margin-bottom: 30px; white-space: pre-line; }
+        .btn { background: #10b981; color: white; border: none; padding: 14px 36px; font-size: 1.1rem; font-weight: bold; border-radius: 50px; cursor: pointer; box-shadow: 0 4px 0 #059669; }
         .btn:active { transform: translateY(4px); box-shadow: none; }
-        #wind-banner { position: absolute; bottom: 260px; width: 100%; text-align: center; font-weight: 800; font-size: 1.1rem; color: #475569; pointer-events: none; text-shadow: 0 1px 2px rgba(255,255,255,0.8); }
     </style>
 </head>
 <body>
@@ -25,51 +22,85 @@
     <div id="game-container">
         <div id="ui-layer">
             <div class="stat-box">🔥 Streak: <span id="streak-display">0</span></div>
-            <div class="stat-box">
-                <span id="combo-badge">BURNING</span>
-                🏆 Best: <span id="best-display">0</span>
-            </div>
+            <div class="stat-box">🏆 Best: <span id="best-display">0</span></div>
         </div>
 
         <canvas id="gameCanvas" width="400" height="780"></canvas>
-        <div id="wind-banner">💨 Wind: <span id="wind-text">CALM</span></div>
 
         <div id="overlay">
-            <h2 id="title-text">REAL CRUMPLED PHYSICS</h2>
-            <p id="body-text">Throw hard to watch the paper ball realistically bounce and skitter deep onto the floor! Throw soft for a short drop.</p>
-            <button class="btn" id="action-btn" onclick="startGame()">START TOSSING</button>
+            <h2 id="title-text">Paper toss - Office</h2>
+            <p id="body-text">Progression Rules:
+            • Office setting evolves every 3 basket streak.
+            • Dustbin shifts locations every 2 throws.
+            • Cross a 20-streak to make the bin move continuously!</p>
+            <button class="btn" id="action-btn" onclick="startGame()">START RUN</button>
         </div>
     </div>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        let score = 0, highscore = 0, streakCount = 0, gameRunning = false;
-        let particles = [], floaters = [], ballHistory = [], screenShake = 0, windForce = 0, windDirection = 0;
         
-        const bin = { x: 165, y: 190, width: 72, height: 85, currentDirection: 1, baseSpeed: 0.45 };
-        const ballDefault = { x: 200, y: 640, radius: 28, size: 28 };
+        let score = 0, highscore = 0, streakCount = 0, gameRunning = false;
+        let totalThrowsCount = 0; 
+        let particles = [], floaters = [], ballHistory = []; 
+        
+        const bin = { x: 155, y: 220, width: 90, height: 95, speedX: 2, direction: 1 };
+        const ballDefault = { x: 200, y: 640, radius: 30, size: 30 };
         let ball = { ...ballDefault, vx: 0, vy: 0, isThrown: false, scale: 1, bounces: 0, rotation: 0, rotSpeed: 0, jagPoints: [] };
         
-        const hypeWords = ["NICE!", "SWISH!", "EASY!", "UNSTOPPABLE!", "GODLIKE!", "MONSTER!"];
-        const themes = [
-            { wallTop: '#1e293b', wallBottom: '#0f172a', floorTop: '#cbd5e1', floorBottom: '#94a3b8', line: '#64748b' }
-        ];
-        let currentTheme = themes[0];
+        const hypeWords = ["SWISH!", "PROMOTED!", "CLEAN TOSS!", "WILD SHOT!", "EXECUTIVE!", "JACKPOT!", "UNSTOPPABLE!"];
         
-        // Generate procedural crinkle points to make the circle look like a crumpled ball
-        function generatePaperShape() {
-            const points = [];
-            const numPoints = 12;
-            for (let i = 0; i < numPoints; i++) {
-                // Random indentation factor to give a crinkled texture
-                let indent = 0.82 + Math.random() * 0.22;
-                points.push(indent);
+        const environments = [
+            {
+                name: "Open Cubicles",
+                wallTop: '#334155', wallBottom: '#1e293b', floorTop: '#94a3b8', floorBottom: '#475569',
+                ballTint: '#fdfdfd', binColors: ['#475569', '#64748b', '#334155'],
+                drawExtra: (ctx) => {
+                    ctx.fillStyle = '#475569'; ctx.fillRect(40, 80, 12, 200); ctx.fillRect(348, 80, 12, 200);
+                    ctx.fillStyle = '#64748b'; ctx.fillRect(0, 160, 40, 8); ctx.fillRect(360, 160, 40, 8);
+                }
+            },
+            {
+                name: "Executive Cabin",
+                wallTop: '#451a03', wallBottom: '#1c1917', floorTop: '#78350f', floorBottom: '#451a03',
+                ballTint: '#ffedd5', binColors: ['#7c2d12', '#9a3412', '#431407'],
+                drawExtra: (ctx) => {
+                    ctx.fillStyle = '#020617'; ctx.fillRect(60, 30, 280, 120);
+                    ctx.fillStyle = '#f59e0b'; ctx.fillRect(90, 90, 8, 14); ctx.fillRect(140, 70, 12, 25); ctx.fillRect(220, 85, 10, 30); ctx.fillRect(280, 100, 6, 12);
+                    ctx.strokeStyle = '#78350f'; ctx.lineWidth = 6; ctx.strokeRect(60, 30, 280, 120);
+                    ctx.beginPath(); ctx.moveTo(200, 30); ctx.lineTo(200, 150); ctx.stroke();
+                }
+            },
+            {
+                name: "ATM Vault Space",
+                wallTop: '#090d16', wallBottom: '#020617', floorTop: '#1e293b', floorBottom: '#0f172a',
+                ballTint: '#e0f2fe', binColors: ['#0284c7', '#0ea5e9', '#0369a1'],
+                drawExtra: (ctx) => {
+                    let glow = ctx.createLinearGradient(0,0,0,280); glow.addColorStop(0, '#06b6d4'); glow.addColorStop(1, 'transparent');
+                    ctx.fillStyle = glow; ctx.fillRect(20, 20, 24, 240); ctx.fillRect(356, 20, 24, 240);
+                    ctx.fillStyle = '#00f5ff'; ctx.fillRect(20, 110, 24, 3); ctx.fillRect(356, 110, 24, 3);
+                }
+            },
+            {
+                name: "Breakroom Lounge",
+                wallTop: '#f0fdf4', wallBottom: '#dcfce7', floorTop: '#bbf7d0', floorBottom: '#86efac',
+                ballTint: '#ffffff', binColors: ['#15803d', '#16a34a', '#14532d'],
+                drawExtra: (ctx) => {
+                    ctx.fillStyle = '#166534'; ctx.beginPath(); ctx.arc(0, 280, 45, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = '#14532d'; ctx.beginPath(); ctx.arc(-10, 260, 30, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(20, 290, 25, 0, Math.PI*2); ctx.fill();
+                }
             }
+        ];
+        
+        let currentEnvIndex = 0;
+
+        function generatePaperShape() {
+            const points = []; const numPoints = 14;
+            for (let i = 0; i < numPoints; i++) points.push(0.85 + Math.random() * 0.18);
             return points;
         }
 
-        // --- Continuous Tracking Input Engine ---
         let lastTouchPos = { x: 0, y: 0, time: 0 };
         let currentTouchPos = { x: 0, y: 0, time: 0 };
         let isDragging = false;
@@ -79,7 +110,7 @@
             const rect = canvas.getBoundingClientRect();
             const clickX = ((e.clientX - rect.left) / rect.width) * canvas.width;
             const clickY = ((e.clientY - rect.top) / rect.height) * canvas.height;
-            if (Math.hypot(clickX - ball.x, clickY - ball.y) < ball.radius * 2.5) {
+            if (Math.hypot(clickX - ball.x, clickY - ball.y) < ball.radius * 3.0) {
                 isDragging = true;
                 currentTouchPos = { x: clickX, y: clickY, time: performance.now() };
                 lastTouchPos = { ...currentTouchPos };
@@ -106,185 +137,202 @@
             let instantaneousVx = (currentTouchPos.x - lastTouchPos.x) / duration;
             let instantaneousVy = (currentTouchPos.y - lastTouchPos.y) / duration;
             
-            // Scaled up for impactful velocity transfer
-            ball.vx = Math.max(-18, Math.min(18, instantaneousVx * 18));
-            ball.vy = Math.max(-35, Math.min(-10, instantaneousVy * 22));
+            ball.vx = Math.max(-16, Math.min(16, instantaneousVx * 26));
+            ball.vy = Math.max(-42, Math.min(-14, instantaneousVy * 32));
             
-            if (ball.vy < -10) { 
+            let binCenterX = bin.x + (bin.width / 2);
+            let deviationFromCenter = ball.x - binCenterX;
+            ball.vx -= (deviationFromCenter * 0.03); 
+            
+            if (ball.vy < -12) { 
                 ball.isThrown = true; 
                 ball.bounces = 0; 
                 ballHistory = []; 
-                ball.rotSpeed = (Math.random() - 0.5) * 0.25; // Add rotation to the throw
-            } 
-            else { resetBall(); }
+                ball.rotSpeed = (Math.random() - 0.5) * 0.15;
+                totalThrowsCount++;
+            } else { 
+                resetBall(); 
+            }
         });
 
-        function adjustEnvironmentDifficulty() {
-            if (streakCount < 3) { windForce = 0; document.getElementById('wind-text').innerText = "CALM"; } 
-            else {
-                windDirection = Math.random() < 0.5 ? -1 : 1; 
-                windForce = 0.02 + (Math.random() * 0.03); 
-                let displayForce = Math.round(windForce * 125); 
-                let arrow = windDirection > 0 ? "▶" : "◀"; 
-                document.getElementById('wind-text').innerText = `${arrow} ${displayForce} KM/H`;
-            }
+        function relocateDustbinRandomly() {
+            const minX = 35;
+            const maxX = canvas.width - bin.width - 35;
+            bin.x = Math.floor(minX + Math.random() * (maxX - minX));
         }
 
-        function startGame() { document.getElementById('overlay').style.display = 'none'; score = 0; streakCount = 0; particles = []; floaters = []; ballHistory = []; document.getElementById('streak-display').innerText = streakCount; resetBall(); gameRunning = true; }
+        function syncEnvironmentState() {
+            currentEnvIndex = Math.floor(streakCount / 3) % environments.length;
+        }
+
+        function startGame() { 
+            document.getElementById('overlay').style.display = 'none'; 
+            score = 0; 
+            streakCount = 0; 
+            totalThrowsCount = 0;
+            bin.x = 155; 
+            syncEnvironmentState();
+            particles = []; floaters = []; ballHistory = []; 
+            document.getElementById('streak-display').innerText = streakCount; 
+            resetBall(); 
+            gameRunning = true; 
+        }
         
         function resetBall() { 
             ball.x = ballDefault.x; 
             ball.y = ballDefault.y; 
-            ball.vx = 0; 
-            ball.vy = 0; 
-            ball.scale = 1; 
+            ball.vx = 0; ball.vy = 0; ball.scale = 1; 
             ball.radius = ballDefault.size; 
-            ball.isThrown = false; 
-            ball.bounces = 0; 
+            ball.isThrown = false; ball.bounces = 0; 
             ball.rotation = Math.random() * Math.PI;
             ball.rotSpeed = 0;
             ball.jagPoints = generatePaperShape();
             ballHistory = []; 
-            adjustEnvironmentDifficulty(); 
+
+            if (gameRunning && streakCount < 20 && totalThrowsCount % 2 === 0) {
+                relocateDustbinRandomly();
+                triggerRewardText(canvas.width / 2, bin.y + 130, "BIN SHIFTED!", "#f59e0b");
+            }
         }
 
-        function spawnCelebrationParticles(x, y) { const colors = ['#f59e0b', '#10b981', '#3b82f6']; for (let i = 0; i < 15; i++) { particles.push({ x: x, y: y, vx: (Math.random() - 0.5) * 6, vy: (Math.random() - 0.7) * 6, radius: Math.random() * 3 + 2, color: colors[Math.floor(Math.random() * colors.length)], alpha: 1, decay: 0.02 }); } }
-        function triggerRewardText(x, y, txt, color = '#3b82f6') { floaters.push({ x: x, y: y, text: txt, color: color, size: '22px', alpha: 1, vy: -1.5 }); }
+        function spawnCelebrationParticles(x, y) { 
+            const colors = ['#34d399', '#60a5fa', '#fbbf24', '#f472b6', '#a855f7']; 
+            for (let i = 0; i < 22; i++) { 
+                particles.push({ 
+                    x: x, y: y, 
+                    vx: (Math.random() - 0.5) * 9, vy: (Math.random() - 0.8) * 9, 
+                    radius: Math.random() * 4 + 2, color: colors[Math.floor(Math.random() * colors.length)], 
+                    alpha: 1, decay: 0.018 
+                }); 
+            } 
+        }
+        
+        function triggerRewardText(x, y, txt, color = '#3b82f6') { 
+            floaters.push({ x: x, y: y, text: txt, color: color, size: '24px', alpha: 1, vy: -1.4 }); 
+        }
 
-        function drawPaperBall(ctx, x, y, radius, rotation, jagPoints) {
-            ctx.save();
-            ctx.translate(x, y);
-            ctx.rotate(rotation);
-            
-            // Draw Paper Shadows & Body base
-            ctx.fillStyle = '#f8fafc';
-            ctx.strokeStyle = '#cbd5e1';
-            ctx.lineWidth = 1.5;
-            
+        function drawPaperBall(ctx, x, y, radius, rotation, jagPoints, env) {
+            ctx.save(); ctx.translate(x, y); ctx.rotate(rotation);
+            ctx.fillStyle = env.ballTint; ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 1.5;
             ctx.beginPath();
             let numPoints = jagPoints.length;
             for (let i = 0; i < numPoints; i++) {
                 let angle = (i / numPoints) * Math.PI * 2;
                 let r = radius * jagPoints[i];
-                let currX = Math.cos(angle) * r;
-                let currY = Math.sin(angle) * r;
-                if (i === 0) ctx.moveTo(currX, currY);
-                else ctx.lineTo(currX, currY);
+                let currX = Math.cos(angle) * r; let currY = Math.sin(angle) * r;
+                if (i === 0) ctx.moveTo(currX, currY); else ctx.lineTo(currX, currY);
             }
-            ctx.closePath();
-            ctx.fill();
-            ctx.stroke();
-
-            // Internal crinkle crease lines to create texture depth
-            ctx.strokeStyle = '#94a3b8';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
+            ctx.closePath(); ctx.fill(); ctx.stroke();
+            
+            ctx.strokeStyle = 'rgba(100, 116, 139, 0.4)'; ctx.lineWidth = 1; ctx.beginPath();
             for (let i = 0; i < numPoints; i += 2) {
-                let angleA = (i / numPoints) * Math.PI * 2;
-                let angleB = ((i + 4) % numPoints / numPoints) * Math.PI * 2;
-                ctx.moveTo(Math.cos(angleA) * radius * 0.4, Math.sin(angleA) * radius * 0.4);
-                ctx.lineTo(Math.cos(angleB) * radius * jagPoints[i] * 0.8, Math.sin(angleB) * radius * jagPoints[i] * 0.8);
+                let angleA = (i / numPoints) * Math.PI * 2; let angleB = ((i + 5) % numPoints / numPoints) * Math.PI * 2;
+                ctx.moveTo(Math.cos(angleA) * radius * 0.2, Math.sin(angleA) * radius * 0.2);
+                ctx.lineTo(Math.cos(angleB) * radius * jagPoints[i] * 0.75, Math.sin(angleB) * radius * jagPoints[i] * 0.75);
             }
-            ctx.stroke();
-            ctx.restore();
+            ctx.stroke(); ctx.restore();
         }
 
         function updateEngineLoop() {
             if (gameRunning) {
-                ctx.save();
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                
-                // Draw environments
-                let wallGrad = ctx.createLinearGradient(0, 0, 0, 260); wallGrad.addColorStop(0, currentTheme.wallTop); wallGrad.addColorStop(1, currentTheme.wallBottom); ctx.fillStyle = wallGrad; ctx.fillRect(0, 0, canvas.width, 260);
-                let floorGrad = ctx.createLinearGradient(0, 260, 0, canvas.height); floorGrad.addColorStop(0, currentTheme.floorTop); floorGrad.addColorStop(1, currentTheme.floorBottom); ctx.fillStyle = floorGrad; ctx.fillRect(0, 260, canvas.width, canvas.height - 260);
-                ctx.fillStyle = currentTheme.line; ctx.fillRect(0, 256, canvas.width, 4);
+                ctx.save(); ctx.clearRect(0, 0, canvas.width, canvas.height);
+                let activeEnv = environments[currentEnvIndex];
 
-                // Draw Basket Rim Shadow
-                ctx.fillStyle = 'rgba(15, 23, 42, 0.35)'; ctx.beginPath(); ctx.ellipse(bin.x + (bin.width/2), bin.y, bin.width/2, 10, 0, 0, Math.PI * 2); ctx.fill();
+                let wallGrad = ctx.createLinearGradient(0, 0, 0, 280); 
+                wallGrad.addColorStop(0, activeEnv.wallTop); wallGrad.addColorStop(1, activeEnv.wallBottom); 
+                ctx.fillStyle = wallGrad; ctx.fillRect(0, 0, canvas.width, 280);
+                
+                let floorGrad = ctx.createLinearGradient(0, 280, 0, canvas.height); 
+                floorGrad.addColorStop(0, activeEnv.floorTop); floorGrad.addColorStop(1, activeEnv.floorBottom); 
+                ctx.fillStyle = floorGrad; ctx.fillRect(0, 280, canvas.width, canvas.height - 280);
+                
+                ctx.fillStyle = 'rgba(0,0,0,0.15)'; ctx.fillRect(0, 276, canvas.width, 5);
+                activeEnv.drawExtra(ctx);
+
+                if (streakCount >= 20) {
+                    bin.x += bin.speedX * bin.direction;
+                    const minBoundary = 25;
+                    const maxBoundary = canvas.width - bin.width - 25;
+                    if (bin.x <= minBoundary) { bin.x = minBoundary; bin.direction = 1; }
+                    if (bin.x >= maxBoundary) { bin.x = maxBoundary; bin.direction = -1; }
+                }
+
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.25)'; ctx.beginPath(); ctx.ellipse(bin.x + (bin.width/2), bin.y, bin.width/2, 10, 0, 0, Math.PI * 2); ctx.fill();
                 
                 if (ball.isThrown) {
                     ballHistory.push({ x: ball.x, y: ball.y, radius: ball.radius, rotation: ball.rotation, jagPoints: ball.jagPoints }); 
-                    if (ballHistory.length > 8) ballHistory.shift();
+                    if (ballHistory.length > 5) ballHistory.shift();
 
-                    // Physics application
-                    ball.vx += windForce * windDirection * 0.1; 
-                    ball.x += ball.vx; 
-                    ball.y += ball.vy; 
-                    ball.vy += 0.32; // Realistic Gravity
-                    ball.rotation += ball.rotSpeed;
+                    ball.x += ball.vx; ball.y += ball.vy; ball.vy += 0.35; ball.rotation += ball.rotSpeed;
 
-                    // Perspective sizing depth scaling down as it heads toward back wall
-                    if (ball.y < 580 && ball.scale > 0.4) { 
-                        ball.scale -= 0.016; 
-                        ball.radius = ballDefault.size * ball.scale; 
+                    if (ball.y < 560 && ball.scale > 0.45) { 
+                        ball.scale -= 0.016; ball.radius = ballDefault.size * ball.scale; 
                     }
 
-                    // Collision checking with the waste basket rim
-                    if (ball.vy >= 0 && ball.y >= bin.y - 10 && ball.y <= bin.y + 20 && ball.scale < 0.6) {
-                        let binCenterX = bin.x + (bin.width / 2), allowance = (bin.width / 2) + 2;
-                        if (Math.abs(ball.x - binCenterX) < allowance && ball.bounces === 0) {
-                            streakCount++; document.getElementById('streak-display').innerText = streakCount; screenShake = 6; spawnCelebrationParticles(ball.x, bin.y + 10);
-                            let word = hypeWords[Math.min(hypeWords.length - 1, Math.floor(streakCount / 2))]; triggerRewardText(binCenterX, bin.y - 35, word, '#10b981'); resetBall();
+                    if (ball.vy >= -2 && ball.y >= bin.y - 12 && ball.y <= bin.y + 35 && ball.scale < 0.65) {
+                        let binCenterX = bin.x + (bin.width / 2);
+                        let easyAllowance = (bin.width / 2) + 16; 
+                        
+                        if (Math.abs(ball.x - binCenterX) < easyAllowance && ball.bounces === 0) {
+                            streakCount++; 
+                            document.getElementById('streak-display').innerText = streakCount; 
+                            spawnCelebrationParticles(ball.x, bin.y + 15);
+                            
+                            let word = hypeWords[(streakCount - 1) % hypeWords.length]; 
+                            if (streakCount === 20) word = "BOSS MODE ACTIVE!";
+                            triggerRewardText(binCenterX, bin.y - 50, word, '#10b981'); 
+                            
+                            syncEnvironmentState();
+                            resetBall();
                         }
                     }
 
-                    // DYNAMIC FLOOR BOUNCE - Tied directly to forward velocity & bounce speed!
-                    // Dynamic Floor baseline shifts organically with 3D depth scale!
-                    let dynamicFloor = canvas.height - (180 * (1 - ball.scale)); 
-                    
+                    let dynamicFloor = canvas.height - (190 * (1 - ball.scale)); 
                     if (ball.y >= dynamicFloor && ball.vy > 0) {
                         ball.bounces++;
-                        if (ball.bounces > 4 || Math.abs(ball.vx) < 0.1) { 
-                            endGame(); 
-                        } else {
-                            ball.y = dynamicFloor;
-                            
-                            // Paper ball bounce characteristics (highly inelastic vertical, keeps skimming speed)
-                            ball.vy = -ball.vy * 0.28; 
-                            ball.vx *= 0.72; // Skidding decay friction
-                            ball.rotSpeed *= 0.5; // Friction slows rotation spin down
-                            
-                            // Visual squish feedback on impact
-                            ball.radius *= 0.9;
+                        if (ball.bounces > 2 || Math.abs(ball.vx) < 0.2) { endGame(); } 
+                        else {
+                            ball.y = dynamicFloor; ball.vy = -ball.vy * 0.20; ball.vx *= 0.70; ball.radius *= 0.95;
                         }
                     }
-
-                    // Bounds checking
                     if (ball.x < -40 || ball.x > canvas.width + 40) { endGame(); }
                 }
 
-                // Render basket back wall element
-                let binGrad = ctx.createLinearGradient(bin.x, bin.y, bin.x + bin.width, bin.y); binGrad.addColorStop(0, '#475569'); binGrad.addColorStop(0.5, '#64748b'); binGrad.addColorStop(1, '#334155'); ctx.fillStyle = binGrad; ctx.beginPath(); ctx.moveTo(bin.x, bin.y); ctx.lineTo(bin.x + 8, bin.y + bin.height); ctx.lineTo(bin.x + bin.width - 8, bin.y + bin.height); ctx.lineTo(bin.x + bin.width, bin.y); ctx.closePath(); ctx.fill();
+                let binGrad = ctx.createLinearGradient(bin.x, bin.y, bin.x + bin.width, bin.y); 
+                binGrad.addColorStop(0, activeEnv.binColors[0]); binGrad.addColorStop(0.5, activeEnv.binColors[1]); binGrad.addColorStop(1, activeEnv.binColors[2]); 
+                ctx.fillStyle = binGrad; ctx.beginPath(); 
+                ctx.moveTo(bin.x, bin.y); ctx.lineTo(bin.x + 8, bin.y + bin.height); ctx.lineTo(bin.x + bin.width - 8, bin.y + bin.height); ctx.lineTo(bin.x + bin.width, bin.y); 
+                ctx.closePath(); ctx.fill();
 
-                // Draw paper ball history traces (motion blur lines)
                 if (ball.isThrown && ballHistory.length > 1) {
                     for (let i = 0; i < ballHistory.length; i++) {
-                        let h = ballHistory[i];
-                        ctx.save();
-                        ctx.globalAlpha = (i / ballHistory.length) * 0.3;
-                        drawPaperBall(ctx, h.x, h.y, h.radius, h.rotation, h.jagPoints);
-                        ctx.restore();
+                        let h = ballHistory[i]; ctx.save(); ctx.globalAlpha = (i / ballHistory.length) * 0.20;
+                        drawPaperBall(ctx, h.x, h.y, h.radius, h.rotation, h.jagPoints, activeEnv); ctx.restore();
                     }
                 }
 
-                // Render Main Ball
                 if (!isDragging && !ball.isThrown) {
-                    // Slight idle float animation before launch
-                    let idle = Math.sin(performance.now() * 0.003) * 2;
-                    drawPaperBall(ctx, ball.x, ball.y + idle, ball.radius, ball.rotation, ball.jagPoints);
+                    let idle = Math.sin(performance.now() * 0.0035) * 2;
+                    drawPaperBall(ctx, ball.x, ball.y + idle, ball.radius, ball.rotation, ball.jagPoints, activeEnv);
                 } else {
-                    drawPaperBall(ctx, ball.x, ball.y, ball.radius, ball.rotation, ball.jagPoints);
+                    drawPaperBall(ctx, ball.x, ball.y, ball.radius, ball.rotation, ball.jagPoints, activeEnv);
                 }
 
-                // Update overlay particle/text decorations
-                for (let i = particles.length - 1; i >= 0; i--) { let p = particles[i]; p.x += p.vx; p.y += p.vy; p.vy += 0.2; p.alpha -= p.decay; if (p.alpha <= 0) { particles.splice(i, 1); continue; } ctx.save(); ctx.globalAlpha = p.alpha; ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
-                for (let i = floaters.length - 1; i >= 0; i--) { let f = floaters[i]; f.y += f.vy; f.alpha -= 0.018; if (f.alpha <= 0) { floaters.splice(i, 1); continue; } ctx.save(); ctx.globalAlpha = f.alpha; ctx.fillStyle = f.color; f.font = `900 ${f.size} 'Segoe UI', sans-serif`; f.textAlign = 'center'; ctx.fillText(f.text, f.x, f.y); ctx.restore(); }
+                for (let i = particles.length - 1; i >= 0; i--) { let p = particles[i]; p.x += p.vx; p.y += p.vy; p.vy += 0.18; p.alpha -= p.decay; if (p.alpha <= 0) { particles.splice(i, 1); continue; } ctx.save(); ctx.globalAlpha = p.alpha; ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
+                for (let i = floaters.length - 1; i >= 0; i--) { let f = floaters[i]; f.y += f.vy; f.alpha -= 0.015; if (f.alpha <= 0) { floaters.splice(i, 1); continue; } ctx.save(); ctx.globalAlpha = f.alpha; ctx.fillStyle = f.color; f.font = `900 ${f.size} 'Segoe UI', sans-serif`; f.textAlign = 'center'; ctx.fillText(f.text, f.x, f.y); ctx.restore(); }
                 ctx.restore();
             }
             requestAnimationFrame(updateEngineLoop);
         }
 
-        function endGame() { gameRunning = false; if (streakCount > highscore) { highscore = streakCount; document.getElementById('best-display').innerText = highscore; } document.getElementById('overlay').style.display = 'flex'; document.getElementById('title-text').innerText = "BALL SETTLED"; document.getElementById('body-text').innerText = `The paper crumpled up on the floor!\n\nStreak achieved: ${streakCount}`; document.getElementById('action-btn').innerText = "TOSS AGAIN"; }
+        function endGame() { 
+            gameRunning = false; 
+            if (streakCount > highscore) { highscore = streakCount; document.getElementById('best-display').innerText = highscore; } 
+            document.getElementById('overlay').style.display = 'flex'; 
+            document.getElementById('title-text').innerText = "Paper toss - Office"; 
+            document.getElementById('body-text').innerText = `Total Score: ${streakCount}\nTotal Office Throws: ${totalThrowsCount}\n\n${streakCount >= 20 ? 'You held your ground in moving Boss Mode!' : 'Tip: Watch out for the 2-throw random target shifts!'}`; 
+            document.getElementById('action-btn').innerText = "TRY ANOTHER RUN"; 
+        }
         requestAnimationFrame(updateEngineLoop);
     </script>
 </body>
