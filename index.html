@@ -137,18 +137,20 @@
             let instantaneousVx = (currentTouchPos.x - lastTouchPos.x) / duration;
             let instantaneousVy = (currentTouchPos.y - lastTouchPos.y) / duration;
             
-            ball.vx = Math.max(-16, Math.min(16, instantaneousVx * 26));
-            ball.vy = Math.max(-42, Math.min(-14, instantaneousVy * 32));
+            // Smoothed multiplier mapping - provides easier, more direct launch power
+            ball.vx = Math.max(-15, Math.min(15, instantaneousVx * 28));
+            ball.vy = Math.max(-40, Math.min(-16, instantaneousVy * 34));
             
+            // Reduced trajectory drift to make line-of-sight throwing reliable
             let binCenterX = bin.x + (bin.width / 2);
             let deviationFromCenter = ball.x - binCenterX;
-            ball.vx -= (deviationFromCenter * 0.03); 
+            ball.vx -= (deviationFromCenter * 0.015); 
             
             if (ball.vy < -12) { 
                 ball.isThrown = true; 
                 ball.bounces = 0; 
                 ballHistory = []; 
-                ball.rotSpeed = (Math.random() - 0.5) * 0.15;
+                ball.rotSpeed = (Math.random() - 0.5) * 0.08; // Dampened excessive rotation stability
                 totalThrowsCount++;
             } else { 
                 resetBall(); 
@@ -156,8 +158,8 @@
         });
 
         function relocateDustbinRandomly() {
-            const minX = 35;
-            const maxX = canvas.width - bin.width - 35;
+            const minX = 40;
+            const maxX = canvas.width - bin.width - 40;
             bin.x = Math.floor(minX + Math.random() * (maxX - minX));
         }
 
@@ -200,7 +202,7 @@
             for (let i = 0; i < 22; i++) { 
                 particles.push({ 
                     x: x, y: y, 
-                    vx: (Math.random() - 0.5) * 9, vy: (Math.random() - 0.8) * 9, 
+                    vx: (Math.random() - 0.5) * 8, vy: (Math.random() - 0.8) * 8, 
                     radius: Math.random() * 4 + 2, color: colors[Math.floor(Math.random() * colors.length)], 
                     alpha: 1, decay: 0.018 
                 }); 
@@ -269,9 +271,10 @@
                         ball.scale -= 0.016; ball.radius = ballDefault.size * ball.scale; 
                     }
 
-                    if (ball.vy >= -2 && ball.y >= bin.y - 12 && ball.y <= bin.y + 35 && ball.scale < 0.65) {
+                    // Score Validation check - expanded hit zone tolerance slightly for better feedback loops
+                    if (ball.vy >= -2 && ball.y >= bin.y - 15 && ball.y <= bin.y + 40 && ball.scale < 0.65) {
                         let binCenterX = bin.x + (bin.width / 2);
-                        let easyAllowance = (bin.width / 2) + 16; 
+                        let easyAllowance = (bin.width / 2) + 20; 
                         
                         if (Math.abs(ball.x - binCenterX) < easyAllowance && ball.bounces === 0) {
                             streakCount++; 
