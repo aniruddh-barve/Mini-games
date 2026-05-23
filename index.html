@@ -101,6 +101,7 @@
             return points;
         }
 
+        let startTouchPos = { x: 0, y: 0 }; // Track anchor point
         let lastTouchPos = { x: 0, y: 0, time: 0 };
         let currentTouchPos = { x: 0, y: 0, time: 0 };
         let isDragging = false;
@@ -112,6 +113,7 @@
             const clickY = ((e.clientY - rect.top) / rect.height) * canvas.height;
             if (Math.hypot(clickX - ball.x, clickY - ball.y) < ball.radius * 3.0) {
                 isDragging = true;
+                startTouchPos = { x: clickX, y: clickY };
                 currentTouchPos = { x: clickX, y: clickY, time: performance.now() };
                 lastTouchPos = { ...currentTouchPos };
                 ball.x = clickX; ball.y = clickY;
@@ -131,17 +133,26 @@
         canvas.addEventListener('pointerup', () => {
             if (!isDragging) return;
             isDragging = false;
+            
+            // Check absolute delta path length from start point
+            let totalDeltaX = Math.abs(currentTouchPos.x - startTouchPos.x);
+            let totalDeltaY = Math.abs(currentTouchPos.y - startTouchPos.y);
+            
+            // Reset position immediately if distance is too small (e.g. accidental drag or static lift)
+            if (totalDeltaX < 30 && totalDeltaY < 30) {
+                resetBall();
+                return;
+            }
+
             let duration = currentTouchPos.time - lastTouchPos.time;
             if (duration <= 0) duration = 16; 
             
             let instantaneousVx = (currentTouchPos.x - lastTouchPos.x) / duration;
             let instantaneousVy = (currentTouchPos.y - lastTouchPos.y) / duration;
             
-            // Smoothed multiplier mapping - provides easier, more direct launch power
             ball.vx = Math.max(-15, Math.min(15, instantaneousVx * 28));
             ball.vy = Math.max(-40, Math.min(-16, instantaneousVy * 34));
             
-            // Reduced trajectory drift to make line-of-sight throwing reliable
             let binCenterX = bin.x + (bin.width / 2);
             let deviationFromCenter = ball.x - binCenterX;
             ball.vx -= (deviationFromCenter * 0.015); 
@@ -150,7 +161,7 @@
                 ball.isThrown = true; 
                 ball.bounces = 0; 
                 ballHistory = []; 
-                ball.rotSpeed = (Math.random() - 0.5) * 0.08; // Dampened excessive rotation stability
+                ball.rotSpeed = (Math.random() - 0.5) * 0.08; 
                 totalThrowsCount++;
             } else { 
                 resetBall(); 
@@ -271,7 +282,6 @@
                         ball.scale -= 0.016; ball.radius = ballDefault.size * ball.scale; 
                     }
 
-                    // Score Validation check - expanded hit zone tolerance slightly for better feedback loops
                     if (ball.vy >= -2 && ball.y >= bin.y - 15 && ball.y <= bin.y + 40 && ball.scale < 0.65) {
                         let binCenterX = bin.x + (bin.width / 2);
                         let easyAllowance = (bin.width / 2) + 20; 
